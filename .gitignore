@@ -1,0 +1,25 @@
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+build/
+dist/
+.venv/
+.ipynb_checkpoints/
+/data/raw/
+/data/interim/
+/data/processed/
+experiments/
+reports/
+artifacts/
+*.joblib
+*.pkl
+*.onnx
+.DS_Store
+.vscode/
+.idea/
+.env
+*.key
+
+# Local scratch data (Kaggle downloads, etc.)
+/Kaggle_Binary/

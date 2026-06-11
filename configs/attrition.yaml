@@ -1,0 +1,138 @@
+# Example config — Kaggle "Playground Series S3E3" Employee Attrition
+# (binary, imbalanced ~12% positives). Exercises the full risk pipeline:
+# WoE encoding -> SMOTE -> Logistic Regression -> grid tuning -> isotonic
+# calibration -> PDO scorecard -> SHAP -> export.
+#
+# Data is not shipped with the repo. To run this config:
+#   1. Download train.csv from the Kaggle "Playground Series S3E3" competition.
+#   2. Drop the `id` column.
+#   3. Save it to data/raw/attrition.csv (this folder is gitignored).
+
+run:
+  name: "attrition_logreg_woe"
+  seed: 42
+  output_root: "experiments"
+
+data:
+  source:
+    format: "csv"
+    path: "data/raw/attrition.csv"
+    csv_options:
+      sep: ","
+      encoding: "utf-8"
+  target:
+    column: "Attrition"
+    positive_class: 1
+  date_column: null
+
+split:
+  method: "stratified_random"
+  stratified_random:
+    train_ratio: 0.7
+    val_ratio: 0.15
+    test_ratio: 0.15
+    stratify_by: null
+
+model:
+  estimator:
+    kind: logreg
+    C: 1.0
+    max_iter: 1000
+    solver: lbfgs
+  persist:
+    path: "artifacts/model.joblib"
+
+evaluation:
+  metrics: ["roc_auc", "ks", "gini", "pr_auc", "brier", "log_loss"]
+  thresholds: [0.3, 0.5, 0.7]
+  plots:
+    enabled: true
+    formats: ["png"]
+
+preprocessing:
+  numeric:
+    missing: median
+    add_indicator: false
+    outlier: iqr
+    iqr_factor: 1.5
+  categorical:
+    missing: mode
+    add_indicator: false
+
+feature_engineering:
+  numeric:
+    method: woe
+    woe_binning: quantile
+    woe_n_bins: 10
+    woe_min_bin_pct: 0.05
+  categorical:
+    method: woe
+    min_bin_pct: 0.01
+
+feature_selection:
+  selectors:
+    - kind: variance
+      threshold: 0.0
+    - kind: iv_threshold
+      threshold: 0.02
+      n_bins: 10
+    - kind: correlation
+      threshold: 0.95
+      tie_break: iv
+  report:
+    csv_path: "reports/feature_selection.csv"
+
+imbalance:
+  sampler:
+    kind: smote
+    sampling_strategy: auto
+    k_neighbors: 5
+    categorical_features: null
+  report:
+    json_path: "reports/imbalance_report.json"
+
+tuning:
+  backend: grid
+  cv: 3
+  scoring: roc_auc
+  n_trials: 50
+  search_space:
+    C: [0.1, 1.0, 10.0]
+    solver: [lbfgs, saga]
+  report:
+    history_path: "reports/tuning_history.json"
+
+calibration:
+  kind: isotonic
+  report:
+    summary_path: "reports/calibration_summary.json"
+    plot_path: "reports/plots/calibration_compare.png"
+
+scorecard:
+  base_score: 600
+  base_odds: 50.0
+  pdo: 20
+  rank_band_low: 300
+  rank_band_high: 850
+  report:
+    csv_path: "reports/scorecard.csv"
+    summary_path: "reports/scorecard_summary.json"
+    artifact_path: "artifacts/scorer.joblib"
+
+explain:
+  top_k_features: 8
+  n_local_samples: 3
+  output_subdir: "reports/explain"
+  shap:
+    enabled: true
+    n_background: 100
+    n_target: 200
+  pdp:
+    enabled: true
+    n_samples: 200
+    grid_resolution: 30
+
+export:
+  kinds: ["joblib"]
+  bundle_path: "artifacts/bundle.joblib"
+  summary_path: "reports/export_summary.json"

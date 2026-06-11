@@ -1,0 +1,163 @@
+# Walking-skeleton example config.
+# Every later sub-project will extend this file with its own sections;
+# do not delete sections — only add.
+
+run:
+  name: "baseline_dummy"
+  seed: 42
+  output_root: "experiments"           # relative to project root
+
+data:
+  source:
+    format: "csv"                      # "csv" | "parquet"
+    path: "data/sample/synthetic_binary.csv"
+    csv_options:
+      sep: ","
+      encoding: "utf-8"
+  target:
+    column: "label"
+    positive_class: 1                  # any scalar; mapped to 1, everything else to 0
+  date_column: "obs_date"              # exclude from feature list; set null if no date col
+
+split:
+  method: "stratified_random"          # "random" | "stratified_random" | "time"
+  random:
+    train_ratio: 0.7
+    val_ratio:   0.15
+    test_ratio:  0.15
+  stratified_random:
+    train_ratio: 0.7
+    val_ratio:   0.15
+    test_ratio:  0.15
+    stratify_by: null                  # null = stratify by target column
+  time:
+    date_column: "obs_date"
+    mode: "ratio"                      # "ratio" | "cutoff"
+    ratio:
+      train_ratio: 0.7
+      val_ratio:   0.15
+      test_ratio:  0.15
+    cutoff:
+      train_end: "2024-12-31"
+      val_end:   "2025-03-31"
+
+model:
+  estimator:
+    kind: logreg                       # dummy | logreg | random_forest |
+                                       # extra_trees | xgboost | lightgbm |
+                                       # catboost | mlp
+    C: 1.0
+    max_iter: 1000
+    solver: lbfgs
+  persist:
+    path: "artifacts/model.joblib"
+
+evaluation:
+  metrics: ["roc_auc", "ks", "gini", "pr_auc", "brier", "log_loss"]
+  thresholds: [0.3, 0.5, 0.7]
+  plots:
+    enabled: true
+    formats: ["png"]
+
+preprocessing:
+  numeric:
+    missing: median                    # mean | median | knn | custom | none
+    add_indicator: false
+    outlier: iqr                       # iqr | percentile | zscore | none
+    iqr_factor: 1.5
+  categorical:
+    missing: mode                      # mode | custom | none
+    add_indicator: false
+  overrides:
+    f0:
+      add_indicator: true              # demonstrate per-column override
+      outlier: percentile
+      percentile_low: 0.01
+      percentile_high: 0.99
+    f7:
+      outlier: zscore
+      zscore_threshold: 3.0
+
+feature_engineering:
+  numeric:
+    method: standard                   # standard | minmax | robust | woe | none
+  categorical:
+    method: woe                        # woe | one_hot | ordinal | target | none
+    min_bin_pct: 0.01
+  overrides:
+    f0:
+      method: woe                      # per-column: use WoE binning for this numeric
+      woe_binning: monotonic
+      woe_n_bins: 5
+
+feature_selection:
+  selectors:
+    - kind: variance
+      threshold: 0.0
+    - kind: iv_threshold
+      threshold: 0.02
+      n_bins: 10
+    - kind: correlation
+      threshold: 0.95
+      tie_break: iv
+  report:
+    csv_path: "reports/feature_selection.csv"
+
+imbalance:
+  sampler:
+    kind: smote                        # none | class_weight | random_oversample
+                                       # | random_undersample | smote | adasyn
+                                       # | smoteenn | smotetomek | auto
+    sampling_strategy: auto
+    k_neighbors: 5
+    categorical_features: null
+  report:
+    json_path: "reports/imbalance_report.json"
+
+tuning:
+  backend: grid
+  cv: 3
+  scoring: roc_auc
+  n_trials: 50
+  search_space:
+    C: [0.1, 1.0, 10.0]
+    solver: [lbfgs, saga]
+  report:
+    history_path: "reports/tuning_history.json"
+
+calibration:
+  kind: isotonic                     # none | platt | isotonic
+  report:
+    summary_path: "reports/calibration_summary.json"
+    plot_path: "reports/plots/calibration_compare.png"
+
+scorecard:
+  base_score: 600
+  base_odds: 50.0
+  pdo: 20
+  rank_band_low: 300
+  rank_band_high: 850
+  report:
+    csv_path: "reports/scorecard.csv"
+    summary_path: "reports/scorecard_summary.json"
+    artifact_path: "artifacts/scorer.joblib"
+
+explain:
+  top_k_features: 8
+  n_local_samples: 3
+  output_subdir: "reports/explain"
+  shap:
+    enabled: true
+    n_background: 100
+    n_target: 200
+  pdp:
+    enabled: true
+    n_samples: 200
+    grid_resolution: 30
+
+export:
+  kinds: ["joblib"]                    # add "onnx" / "pmml" if eligible
+  bundle_path: "artifacts/bundle.joblib"
+  onnx_path: "artifacts/model.onnx"
+  pmml_path: "artifacts/model.pmml"
+  summary_path: "reports/export_summary.json"

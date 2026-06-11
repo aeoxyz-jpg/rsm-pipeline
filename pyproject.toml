@@ -1,0 +1,198 @@
+# =============================================================================
+# rsm_pipeline — Risk Score Model Pipeline
+#
+# Build configuration. Cross-platform (Linux / Windows / macOS), Python 3.11+.
+# Distributed as a zip archive; recipients install via `pip install -e .`
+# (or `pip install .`) from the unzipped folder.
+# =============================================================================
+
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+# -----------------------------------------------------------------------------
+# Project metadata
+# -----------------------------------------------------------------------------
+[project]
+name = "rsm_pipeline"
+version = "0.1.0"
+description = "General-purpose binary-classification risk scoring ML pipeline (WoE/IV, scorecards, SHAP, calibration, monitoring)."
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+license = { text = "MIT" }
+authors = [{ name = "Nikko & Co", email = "nikkonco.llc@gmail.com" }]
+keywords = [
+    "risk-scoring",
+    "binary-classification",
+    "scorecard",
+    "machine-learning",
+    "woe",
+    "iv",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "License :: OSI Approved :: MIT License",
+]
+
+# -----------------------------------------------------------------------------
+# Core runtime dependencies
+#
+# Versioning policy:
+#   - Lower bound: a release that is known to work and ships wheels on all
+#     three OSes for Python 3.11 / 3.12.
+#   - Upper bound: next major version (excluded) to avoid silent breakage.
+#   - No exact pins here. Pinning happens in the lockfile (uv.lock or
+#     requirements.txt frozen at release time).
+# -----------------------------------------------------------------------------
+dependencies = [
+    # --- Core data stack ---
+    "numpy>=1.26,<3.0",
+    "pandas>=2.1,<3.0",
+    "scipy>=1.11,<2.0",
+    "pyarrow>=15.0,<20.0",          # Parquet IO
+
+    # --- Modeling ---
+    "scikit-learn>=1.4,<2.0",
+    "xgboost>=2.0,<4.0",
+    "lightgbm>=4.3,<5.0",
+    "imbalanced-learn>=0.12,<1.0",  # SMOTE family
+
+    # --- Hyperparameter optimization ---
+    "optuna>=3.6,<5.0",
+
+    # --- Explainability ---
+    "shap>=0.45,<1.0",
+
+    # --- Visualization ---
+    "matplotlib>=3.8,<4.0",
+    "seaborn>=0.13,<1.0",
+    "plotly>=5.20,<7.0",
+
+    # --- Persistence & export ---
+    "joblib>=1.3,<2.0",
+    "onnx>=1.16,<2.0",
+    "skl2onnx>=1.16,<2.0",
+    "onnxmltools>=1.12,<2.0",       # XGBoost / LightGBM → ONNX
+
+    # --- Serving ---
+    "fastapi>=0.110,<1.0",
+    "uvicorn[standard]>=0.29,<1.0",
+    "pydantic>=2.6,<3.0",
+
+    # --- Configuration ---
+    "pyyaml>=6.0,<7.0",
+
+    # --- CLI ---
+    "click>=8.1,<9.0",
+
+    # --- Notebook delivery (kept here so a fresh install can run notebooks/) ---
+    "jupyterlab>=4.1,<5.0",
+    "ipykernel>=6.29,<7.0",
+]
+
+# -----------------------------------------------------------------------------
+# Optional dependency groups
+#
+# Install patterns:
+#   pip install .                  # core only (works everywhere)
+#   pip install ".[catboost]"      # add CatBoost (skip on machines where it fails)
+#   pip install ".[pmml]"          # add PMML export (requires Java on the host)
+#   pip install ".[dev]"           # core + black + jupyter extras
+#   pip install ".[all]"           # everything
+# -----------------------------------------------------------------------------
+[project.optional-dependencies]
+
+# CatBoost is isolated because its wheel availability and runtime behaviour
+# vary across OS / Python combinations more than other gradient boosters.
+catboost = [
+    "catboost>=1.2,<2.0",
+]
+
+# PMML export needs a JDK installed on the host machine. Treat as opt-in
+# so base installs don't fail on machines without Java.
+pmml = [
+    "sklearn2pmml>=0.110,<1.0",
+]
+
+# Development conveniences for the package author (you).
+dev = [
+    "black>=24.3,<26.0",
+    "ipywidgets>=8.1,<9.0",
+]
+
+# Everything together — easy way for you to set up your own dev box.
+all = [
+    "rsm_pipeline[catboost,pmml,dev]",
+]
+
+# -----------------------------------------------------------------------------
+# Command-line entry points
+#
+# After installation, these become real shell commands:
+#   rsm-train      --config configs/example_config.yaml
+#   rsm-predict    --model artifacts/model.joblib --input data/new.csv
+#   rsm-serve      --model artifacts/model.joblib --port 8000
+#   rsm-monitor    --reference baseline.parquet --current latest.parquet
+#
+# Each points at a `main()` function inside the corresponding script module.
+# -----------------------------------------------------------------------------
+[project.scripts]
+rsm-train   = "rsm_pipeline.cli.train:main"
+rsm-predict = "rsm_pipeline.cli.predict:main"
+rsm-serve   = "rsm_pipeline.cli.serve:main"
+rsm-monitor = "rsm_pipeline.cli.monitor:main"
+
+[project.urls]
+# Add internal repo / wiki URLs here once they exist.
+# Homepage = "https://example.com/rsm_pipeline"
+
+# =============================================================================
+# Hatch build configuration
+# =============================================================================
+[tool.hatch.build.targets.wheel]
+packages = ["src/rsm_pipeline"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/rsm_pipeline",
+    "configs",
+    "notebooks",
+    "scripts",
+    "README.md",
+    "DESIGN.md",
+    "pyproject.toml",
+]
+exclude = [
+    "data",
+    "experiments",
+    "reports",
+    "**/__pycache__",
+    "**/.ipynb_checkpoints",
+    "**/*.pyc",
+]
+
+# =============================================================================
+# Black — the only formatter / linter for this project (per DESIGN.md §5.1)
+# =============================================================================
+[tool.black]
+line-length = 88
+target-version = ["py311", "py312"]
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+    \.git
+  | \.venv
+  | build
+  | dist
+  | data
+  | experiments
+  | notebooks/.*\.ipynb
+)/
+'''
